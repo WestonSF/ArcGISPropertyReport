@@ -1,35 +1,40 @@
 <?xml version="1.0" ?>
 <configuration>
-    <fields>
-        <field>
-        <placeholder>Address</placeholder>
-        <fieldName>Street_Address</fieldName>
-        <format>String</format>
-        </field>
-        <field>
-        <placeholder>PropertyID</placeholder>
-        <fieldName>Assessment_Number</fieldName>
-        <format>String</format>
-        </field>
-        <field>
+  <fields>
+    <field>
         <placeholder>ValuationID</placeholder>
-        <fieldName>Valuation_Reference</fieldName>
+        <fieldName>ValuationID</fieldName>
         <format>String</format>
-        </field>
-        <field>
+    </field>
+    <field>
+        <placeholder>Area</placeholder>
+        <fieldName>Hectares</fieldName>
+        <format>Float</format>
+    </field>
+    <field>
         <placeholder>CapitalValue</placeholder>
-        <fieldName>Capital_Value</fieldName>
+        <fieldName>CapitalValue</fieldName>
         <format>Currency</format>
-        </field>
-        <field>
+    </field>
+    <field>
         <placeholder>LandValue</placeholder>
-        <fieldName>Land_Value</fieldName>
+        <fieldName>LandValue</fieldName>
         <format>Currency</format>
-        </field>
-        <field>
+    </field>
+    <field>
+        <placeholder>ImprovementsValue</placeholder>
+        <fieldName>ImprValue</fieldName>
+        <format>Currency</format>
+    </field>
+    <field>
+        <placeholder>Rates</placeholder>
+        <fieldName>TotalRates</fieldName>
+        <format>Currency</format>
+    </field>
+    <field>
         <placeholder>LegalDescription</placeholder>
-        <fieldName>Title</fieldName>
+        <fieldName>LegalDescription</fieldName>
         <format>String</format>
-        </field>         
-    </fields>
+    </field>          
+  </fields>
 </configuration>

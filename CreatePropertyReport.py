@@ -3,9 +3,9 @@
 # Purpose:    Will zoom to selected property, showing over the top of imagery. Will also produce
 # a small report about the property.
 # Author:     Shaun Weston (shaun.weston@splicegroup.co.nz)
-# Created:    17/05/2013
+# Created:    09/08/2013
 # Copyright:   (c) Splice Group
-# ArcGIS Version:   10.1
+# ArcGIS Version:   10.1/10.2
 # Python Version:   2.7
 #--------------------------------
 
@@ -14,61 +14,91 @@ import os
 import sys
 import arcpy
 import string
+import json
+import urllib
 import uuid
 import xml.etree.ElementTree as ET
 arcpy.env.overwriteOutput = True
     
-# Pass l the function
-def gotoFunction(configFile,propertyID,propertyField,propertyFeatureClass,layerSymbology,propertyReportMXD,OutputFile): # Get parameters from ArcGIS Desktop tool by seperating by comma e.g. (var1 is 1st parameter,var2 is 2nd parameter,var3 is 3rd parameter)  
+# Main function
+def gotoFunction(propertyID,propertyMapService,propertyIDField,propertyAddressField,configFile,propertySymbology,propertyReportMXD,scaleBuffer,scale,OutputFile): # Get parameters from ArcGIS Desktop tool by seperating by comma e.g. (var1 is 1st parameter,var2 is 2nd parameter,var3 is 3rd parameter)              
     try:
-        # Select the property by ID
-        arcpy.Select_analysis(propertyFeatureClass, "in_memory\PropertySelected", propertyField + " = '" + str(propertyID) + "'")
-
-        # Setup map document
+        # ------------- Select the property by ID ------------------------
+        arcpy.AddMessage("Selecting property...")
+        # Create property features
+        # Create map service query         
+        mapServiceQuery = propertyMapService + "/query?where=" + propertyIDField + "=" + "'" + str(propertyID) + "'" + "&text=&objectIds=&time=&geometry=&geometryType=esriGeometryPolygon&inSR=&spatialRel=esriSpatialRelIntersects&relationParam=&outFields=*&returnGeometry=true&maxAllowableOffset=&geometryPrecision=&outSR=&returnIdsOnly=false&returnCountOnly=false&orderByFields=&groupByFieldsForStatistics=&outStatistics=&returnZ=false&returnM=false&gdbVersion=&f=pjson"
+        urlResponse = urllib.urlopen(mapServiceQuery);   
+        # Get json for feature returned
+        mapServiceQueryJSONData = json.loads(urlResponse.read())          
+        # Get the geometry and create temporary feature class       
+        propertyGeometryJSON = mapServiceQueryJSONData["features"][0]["geometry"]          
+        # Add spatial reference to geometry
+        propertySpatialReference = mapServiceQueryJSONData["spatialReference"]["wkid"]
+        propertyGeometryJSON["spatialReference"] = {'wkid' : propertySpatialReference}     
+        # Convert to feature classes         
+        propertyGeometryPolygon = arcpy.AsShape(propertyGeometryJSON, "True")        
+        arcpy.CopyFeatures_management(propertyGeometryPolygon, "in_memory\PropertySelectedPolygon")
+        # Get the attributes
+        propertyAddress = str(mapServiceQueryJSONData["features"][0]["attributes"].get(propertyAddressField))        
+        # ----------------------------------------------------------------      
+        
+        # ------------- Setup map document ------------------------
         mxd = arcpy.mapping.MapDocument(propertyReportMXD)
         # Reference data frame and the layer
         dataFrame = arcpy.mapping.ListDataFrames(mxd, "Layers")[0]
+        # ----------------------------------------------------------------
 
-        # Add the selected feature to the map
-        arcpy.MakeFeatureLayer_management("in_memory\PropertySelected", "Property Selected")
+        # ------------- Add the selected feature to the map ------------------------
+        arcpy.AddMessage("Adding property to map and zooming to it...")
+        arcpy.MakeFeatureLayer_management("in_memory\PropertySelectedPolygon", "Property Selected")           
         selectionLayer = arcpy.mapping.Layer("Property Selected")
         arcpy.mapping.AddLayer(dataFrame,selectionLayer)
         selectionLayer = arcpy.mapping.ListLayers(mxd, "Property Selected", dataFrame)[0]
+        # ----------------------------------------------------------------
 
-        # Zoom to feature boundary               
+        # ------------- Zoom to feature boundary ------------------------                
         arcpy.SelectLayerByAttribute_management(selectionLayer, "NEW_SELECTION")
         dataFrame.extent = selectionLayer.getSelectedExtent(False)
-        # Take current scale and buffer it out 200%
-        trueScale = dataFrame.scale * 2
-        # Round scale to a more general number and clear selection
-        dataFrame.scale = round(trueScale, -2)
+        
+        # Take current scale and buffer it out by the percentage for urban defined
+        trueScale = dataFrame.scale * float((float(scaleBuffer)/100)+1)
+        # If scale provided, set it to that, otherwise round scale to a more general number and clear selection
+        if scale:
+            dataFrame.scale = scale
+        else:
+            dataFrame.scale = round(trueScale, -2)    
         arcpy.SelectLayerByAttribute_management(selectionLayer, "CLEAR_SELECTION")
-
+        
         # Update the symbology
-        symbologyLayer = arcpy.mapping.Layer(layerSymbology)       
+        symbologyLayer = arcpy.mapping.Layer(propertySymbology)       
         arcpy.mapping.UpdateLayer(dataFrame, selectionLayer, symbologyLayer, True)
+        # ----------------------------------------------------------------
 
-        # Refresh the view
-        arcpy.RefreshActiveView()
-
-        # Update the text elements from the config file
+        # ------------- Replace the title, notes and address text with the paramater values ------------------------ 
+        arcpy.AddMessage("Adding address ...")
+        for elm in arcpy.mapping.ListLayoutElements(mxd, "TEXT_ELEMENT"):
+               if elm.name == "Address":
+                   # Set the address
+                   elm.text = propertyAddress
+        # ----------------------------------------------------------------
+        
+        # ------------- Update the text elements from the config file ------------------------
+        arcpy.AddMessage("Updating report text...")
         # Convert config file to xml
         configFileXML = ET.parse(configFile)    
         # Import and reference the configuration file
         root = configFileXML.getroot()        
 
-        # Iterate through each of the fields listed in the configuration file
-        for child in root.find("fields"):
-            # Get the value of the field from the feature class
-            cursor = arcpy.SearchCursor("in_memory\PropertySelected")            
-            for row in cursor:
-                value = row.getValue(child.find("fieldName").text)
-
+        # Iterate through each of the fields listed in the configuration file for the property report
+        for child in root.find("fields"):     
+            # Get the value of the field from the map service
+            value = str(mapServiceQueryJSONData["features"][0]["attributes"].get(child.find("fieldName").text))
             # Get the text element from the map document and update with value from feature class
-            for elm in arcpy.mapping.ListLayoutElements(mxd, "TEXT_ELEMENT"):
-               if elm.name == child.find("placeholder").text:
+            for elm in arcpy.mapping.ListLayoutElements(mxd, "TEXT_ELEMENT"):               
+               if elm.name == child.find("placeholder").text:                 
                   # If value is valid, otherwise make it blank
-                  if (value):
+                  if (value != "None"):
                       # If value text length is too long then add new lines
                       if (len(str(value)) > 50):
                           # Split string by spaces
@@ -100,13 +130,17 @@ def gotoFunction(configFile,propertyID,propertyField,propertyFeatureClass,layerS
                               elm.text = value
                   else:
                       elm.text = " "
+        # ----------------------------------------------------------------
 
-
-        # Export page to output folder
+        # ------------- Export page to output folder ------------------------
+        arcpy.AddMessage("Creating report...")
+        # Refresh the view
+        arcpy.RefreshActiveView()
         OutputFileName = 'Report_{}.{}'.format(str(uuid.uuid1()), "PDF")
         OutputFile = os.path.join(arcpy.env.scratchFolder, OutputFileName)
-        arcpy.mapping.ExportToPDF(mxd, OutputFile, resolution=200)
-        arcpy.SetParameterAsText(6, OutputFile)
+        arcpy.mapping.ExportToPDF(mxd, OutputFile, jpeg_compression_quality=90, resolution=200)
+        arcpy.SetParameterAsText(9, OutputFile)
+        # ----------------------------------------------------------------
         
         pass
     except arcpy.ExecuteError:
