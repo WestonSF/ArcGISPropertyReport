@@ -1,10 +1,11 @@
 #-------------------------------------------------------------
-# Name:       Property Report
-# Purpose:    Will zoom to selected property, showing over the top of imagery. Will also produce
-# a small report about the property.
-# Author:     Shaun Weston (shaun.weston@splicegroup.co.nz)
-# Created:    09/08/2013
-# Copyright:   (c) Splice Group
+# Name:       ArcGIS Property Report
+# Purpose:    Highlights and zooms to a selected property and produces
+# a report about the property showing it over the top of a basemap.         
+# Author:     Shaun Weston (shaun_weston@eagle.co.nz)
+# Date Created:    09/08/2013
+# Last Updated:    19/03/2014
+# Copyright:   (c) Eagle Technology
 # ArcGIS Version:   10.1/10.2
 # Python Version:   2.7
 #--------------------------------
@@ -13,16 +14,40 @@
 import os
 import sys
 import arcpy
+import logging
+import smtplib
 import string
 import json
 import urllib
 import uuid
 import xml.etree.ElementTree as ET
+
+# Enable data to be overwritten
 arcpy.env.overwriteOutput = True
+
+# Set global variables
+enableLogging = "false" # Use logger.info("Example..."), logger.warning("Example..."), logger.error("Example...")
+logFile = "" # os.path.join(os.path.dirname(__file__), "Example.log")
+sendErrorEmail = "false"
+emailTo = ""
+emailUser = ""
+emailPassword = ""
+emailSubject = ""
+emailMessage = ""
+output = None
     
-# Main function
-def gotoFunction(propertyID,propertyMapService,propertyIDField,propertyAddressField,configFile,propertySymbology,propertyReportMXD,scaleBuffer,scale,OutputFile): # Get parameters from ArcGIS Desktop tool by seperating by comma e.g. (var1 is 1st parameter,var2 is 2nd parameter,var3 is 3rd parameter)              
+# Start of main function
+def mainFunction(propertyID,propertyMapService,propertyIDField,propertyAddressField,configFile,propertySymbology,propertyReportMXD,scaleBuffer,scale,OutputFile): # Get parameters from ArcGIS Desktop tool by seperating by comma e.g. (var1 is 1st parameter,var2 is 2nd parameter,var3 is 3rd parameter)              
     try:
+        # Logging
+        if (enableLogging == "true"):
+            # Setup logging
+            logger, logMessage = setLogging(logFile)
+            # Log start of process
+            logger.info("Process started.")
+            
+        # --------------------------------------- Start of code --------------------------------------- #
+        
         # ------------- Select the property by ID ------------------------
         arcpy.AddMessage("Selecting property...")
         # Create property features
@@ -142,14 +167,99 @@ def gotoFunction(propertyID,propertyMapService,propertyIDField,propertyAddressFi
         arcpy.SetParameterAsText(9, OutputFile)
         # ----------------------------------------------------------------
         
+        # --------------------------------------- End of code --------------------------------------- #  
+            
+        # If called from gp tool return the arcpy parameter   
+        if __name__ == '__main__':
+            # Return the output if there is any
+            if output:
+                arcpy.SetParameterAsText(1, output)
+        # Otherwise return the result          
+        else:
+            # Return the output if there is any
+            if output:
+                return output      
+        # Logging
+        if (enableLogging == "true"):
+            # Log end of process
+            logger.info("Process ended.")
+            # Remove file handler and close log file            
+            logging.FileHandler.close(logMessage)
+            logger.removeHandler(logMessage)
         pass
-    except arcpy.ExecuteError:
-        arcpy.AddMessage(arcpy.GetMessages(2)) 
-        print arcpy.GetMessages(2)
+    # If arcpy error
+    except arcpy.ExecuteError:           
+        # Build and show the error message
+        errorMessage = arcpy.GetMessages(2)   
+        arcpy.AddError(errorMessage)           
+        # Logging
+        if (enableLogging == "true"):
+            # Log error          
+            logger.error(errorMessage)                 
+            # Remove file handler and close log file
+            logging.FileHandler.close(logMessage)
+            logger.removeHandler(logMessage)
+        if (sendErrorEmail == "true"):
+            # Send email
+            sendEmail(errorMessage)
+    # If python error
     except Exception as e:
-        arcpy.AddMessage(e.args[0])       
-        print e.args[0]
-# End of function
+        errorMessage = ""
+        # Build and show the error message
+        for i in range(len(e.args)):
+            if (i == 0):
+                errorMessage = str(e.args[i])
+            else:
+                errorMessage = errorMessage + " " + str(e.args[i])
+        arcpy.AddError(errorMessage)              
+        # Logging
+        if (enableLogging == "true"):
+            # Log error            
+            logger.error(errorMessage)               
+            # Remove file handler and close log file
+            logging.FileHandler.close(logMessage)
+            logger.removeHandler(logMessage)
+        if (sendErrorEmail == "true"):
+            # Send email
+            sendEmail(errorMessage)            
+# End of main function
+
+# Start of set logging function
+def setLogging(logFile):
+    # Create a logger
+    logger = logging.getLogger(os.path.basename(__file__))
+    logger.setLevel(logging.DEBUG)
+    # Setup log message handler
+    logMessage = logging.FileHandler(logFile)
+    # Setup the log formatting
+    logFormat = logging.Formatter("%(asctime)s: %(levelname)s - %(message)s", "%d/%m/%Y - %H:%M:%S")
+    # Add formatter to log message handler
+    logMessage.setFormatter(logFormat)
+    # Add log message handler to logger
+    logger.addHandler(logMessage) 
+
+    return logger, logMessage               
+# End of set logging function
+
+
+# Start of send email function
+def sendEmail(message):
+    # Send an email
+    arcpy.AddMessage("Sending email...")
+    # Server and port information
+    smtpServer = smtplib.SMTP("smtp.gmail.com",587) 
+    smtpServer.ehlo()
+    smtpServer.starttls() 
+    smtpServer.ehlo
+    # Login with sender email address and password
+    smtpServer.login(emailUser, emailPassword)
+    # Email content
+    header = 'To:' + emailTo + '\n' + 'From: ' + emailUser + '\n' + 'Subject:' + emailSubject + '\n'
+    body = header + '\n' + emailMessage + '\n' + '\n' + message
+    # Send the email and close the connection
+    smtpServer.sendmail(emailUser, emailTo, body)    
+# End of send email function
+
 
 # This test allows the script to be used from the operating
 # system command prompt (stand-alone), in a Python IDE, 
@@ -159,4 +269,4 @@ if __name__ == '__main__':
     # Arguments are optional - If running from ArcGIS Desktop tool, parameters will be loaded into *argv
     argv = tuple(arcpy.GetParameterAsText(i)
         for i in range(arcpy.GetArgumentCount()))
-    gotoFunction(*argv)
+    mainFunction(*argv)

@@ -1,4 +1,4 @@
-# Property Report
+# ArcGIS Property Report
 
 Will zoom to selected property, showing over the top of imagery. Will also produce a small report about the property.
 
@@ -17,13 +17,17 @@ Will zoom to selected property, showing over the top of imagery. Will also produ
 
 ## Resources
 
-* [Blog](http://westonelli.wordpress.com)
+* [LinkedIn](http://www.linkedin.com/in/sfweston)
+* [GitHub](https://github.com/WestonSF)
 * [Twitter](https://twitter.com/Westonelli)
+* [Blog](http://westonelli.wordpress.com)
+* [ArcGIS API for Javascript](https://developers.arcgis.com/en/javascript)
+* [Python for ArcGIS](http://resources.arcgis.com/en/communities/python)
 
 
 ## Issues
 
-Find a bug or want to request a new feature?  Please let us know by submitting an issue.
+Find a bug or want to request a new feature?  Please let me know by submitting an issue.
 
 
 ## Contributing
