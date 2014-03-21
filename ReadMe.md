@@ -7,12 +7,20 @@ Will zoom to selected property, showing over the top of imagery. Will also produ
 
 ## Features
 
-* Automated process to create property report
+* Automated process to create property report.
+* Uses map service with related table.
+
 
 ## Requirements
 
 * ArcGIS Server/Desktop 10.1 SP1 or above.
 * Python 2.7 ReportLab for 32 and 64 bit.
+
+
+## Installation Instructions
+
+* Configure and run tool in ArcGIS Desktop - Requires property map service
+* Publish tool to ArcGIS Server
 
 
 ## Resources
@@ -36,7 +44,7 @@ Anyone and everyone is welcome to contribute.
 
 
 ## Licensing
-Copyright 2013 Shaun Weston
+Copyright 2014 - Shaun Weston
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.

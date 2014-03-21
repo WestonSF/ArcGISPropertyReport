@@ -1,0 +1,49 @@
+<?xml version="1.0" ?>
+<configuration>
+    <fields>
+        <field>
+        <placeholder>Address</placeholder>
+        <fieldName>Street_Address</fieldName>
+        <format>String</format>
+        </field>
+        <field>
+        <placeholder>PropertyID</placeholder>
+        <fieldName>Assessment_Number</fieldName>
+        <format>String</format>
+        </field>
+        <field>
+        <placeholder>ValuationID</placeholder>
+        <fieldName>Valuation_Reference</fieldName>
+        <format>String</format>
+        </field>
+        <field>
+        <placeholder>CapitalValue</placeholder>
+        <fieldName>Capital_Value</fieldName>
+        <format>Currency</format>
+        </field>
+        <field>
+        <placeholder>LandValue</placeholder>
+        <fieldName>Land_Value</fieldName>
+        <format>Currency</format>
+        </field>
+        <field>
+        <placeholder>LegalDescription</placeholder>
+        <fieldName>Title</fieldName>
+        <format>String</format>
+        </field>         
+    </fields>
+
+  <relatedTextElement>RelatedTable</relatedTextElement>
+  <relatedFields>
+    <relatedField>
+        <fieldName>Levy_Description</fieldName>
+        <fieldAlias>Levy</fieldAlias>
+        <format>String</format>
+    </relatedField>
+    <relatedField>
+        <fieldName>Levy_Amount</fieldName>
+        <fieldAlias>Amount</fieldAlias>
+        <format>Currency</format>
+    </relatedField>
+  </relatedFields>
+</configuration>

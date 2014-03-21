@@ -4,7 +4,7 @@
 # a report about the property showing it over the top of a basemap.         
 # Author:     Shaun Weston (shaun_weston@eagle.co.nz)
 # Date Created:    09/08/2013
-# Last Updated:    19/03/2014
+# Last Updated:    21/03/2014
 # Copyright:   (c) Eagle Technology
 # ArcGIS Version:   10.1/10.2
 # Python Version:   2.7
@@ -37,7 +37,7 @@ emailMessage = ""
 output = None
     
 # Start of main function
-def mainFunction(propertyID,propertyMapService,propertyIDField,propertyAddressField,configFile,propertySymbology,propertyReportMXD,scaleBuffer,scale,OutputFile): # Get parameters from ArcGIS Desktop tool by seperating by comma e.g. (var1 is 1st parameter,var2 is 2nd parameter,var3 is 3rd parameter)              
+def mainFunction(propertyID,propertyMapService,relationshipID,propertyIDField,propertyAddressField,configFile,propertySymbology,propertyReportMXD,scaleBuffer,scale,OutputFile): # Get parameters from ArcGIS Desktop tool by seperating by comma e.g. (var1 is 1st parameter,var2 is 2nd parameter,var3 is 3rd parameter)              
     try:
         # Logging
         if (enableLogging == "true"):
@@ -67,7 +67,20 @@ def mainFunction(propertyID,propertyMapService,propertyIDField,propertyAddressFi
         # Get the attributes
         propertyAddress = str(mapServiceQueryJSONData["features"][0]["attributes"].get(propertyAddressField))        
         # ----------------------------------------------------------------      
-        
+
+        # ------------- Query related data if neccessary ------------------------
+        # If a related table is in the map service
+        if (len(relationshipID) > 0):  
+            # Get the object ID
+            objectID = str(mapServiceQueryJSONData["features"][0]["attributes"].get("OBJECTID"))           
+            # Create map service query   
+            relateMapServiceQuery = propertyMapService + "/queryRelatedRecords?objectIds=" + objectID + "&relationshipId=" + relationshipID + "&outFields=*&definitionExpression=&returnGeometry=false&maxAllowableOffset=&geometryPrecision=&outSR=&returnZ=false&returnM=false&gdbVersion=&f=pjson"
+            urlResponse = urllib.urlopen(relateMapServiceQuery);
+            # Get json for feature returned
+            relateMapServiceQueryJSONData = json.loads(urlResponse.read())      
+        # ----------------------------------------------------------------
+
+  
         # ------------- Setup map document ------------------------
         mxd = arcpy.mapping.MapDocument(propertyReportMXD)
         # Reference data frame and the layer
@@ -157,6 +170,38 @@ def mainFunction(propertyID,propertyMapService,propertyIDField,propertyAddressFi
                       elm.text = " "
         # ----------------------------------------------------------------
 
+        # ------------- Update the text elements from the config file for related information ------------------------
+        # If a related table is in the map service
+        if (len(relationshipID) > 0):
+            relatedTable = ""    
+            # Iterate through each of the records in the related table
+            for record in relateMapServiceQueryJSONData["relatedRecordGroups"][0]["relatedRecords"]:                
+                # Iterate through each of the relate fields listed in the configuration file for the property report
+                for child in root.find("relatedFields"):
+                    # Iterate through results in the related table
+                    for attribute in record["attributes"]:
+                        # Get the value of the field from the map service
+                        value = str(record["attributes"].get(attribute))
+                             
+                        # If the field name is in the config file
+                        if (attribute == child.find("fieldName").text):
+                            # Format the text
+                            if (child.find("format").text == "Currency"):
+                                value = "$ " + '{:12,.2f}'.format(float(value))
+                            elif (child.find("format").text == "Float"):                       
+                                value = '{:20,.2f}'.format(float(value))                              
+                            else:
+                                value = value
+                            
+                            relatedTable += child.find("fieldAlias").text + ": " + value + "          "
+                relatedTable += "\r\n"
+                
+            # Get the text element from the map document and update with value from feature class
+            for elm in arcpy.mapping.ListLayoutElements(mxd, "TEXT_ELEMENT"):               
+               if (elm.name == root.find("relatedTextElement").text):                               
+                   elm.text = relatedTable
+        # ----------------------------------------------------------------
+        
         # ------------- Export page to output folder ------------------------
         arcpy.AddMessage("Creating report...")
         # Refresh the view
@@ -164,7 +209,7 @@ def mainFunction(propertyID,propertyMapService,propertyIDField,propertyAddressFi
         OutputFileName = 'Report_{}.{}'.format(str(uuid.uuid1()), "PDF")
         OutputFile = os.path.join(arcpy.env.scratchFolder, OutputFileName)
         arcpy.mapping.ExportToPDF(mxd, OutputFile, jpeg_compression_quality=90, resolution=200)
-        arcpy.SetParameterAsText(9, OutputFile)
+        arcpy.SetParameterAsText(10, OutputFile)
         # ----------------------------------------------------------------
         
         # --------------------------------------- End of code --------------------------------------- #  
