@@ -187,7 +187,7 @@ def mainFunction(propertyID,propertyMapService,relationshipID,propertyIDField,pr
                         if (attribute == child.find("fieldName").text):
                             # Format the text
                             if (child.find("format").text == "Currency"):
-                                value = "$ " + '{:12,.2f}'.format(float(value))
+                                value = "$ " + '{:6,.2f}'.format(float(value))
                             elif (child.find("format").text == "Float"):                       
                                 value = '{:20,.2f}'.format(float(value))                              
                             else:
