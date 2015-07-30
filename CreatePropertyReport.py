@@ -4,9 +4,9 @@
 # a report about the property showing it over the top of a basemap.         
 # Author:     Shaun Weston (shaun_weston@eagle.co.nz)
 # Date Created:    09/08/2013
-# Last Updated:    21/03/2014
+# Last Updated:    31/07/2015
 # Copyright:   (c) Eagle Technology
-# ArcGIS Version:   10.1/10.2
+# ArcGIS Version:   10.1+
 # Python Version:   2.7
 #--------------------------------
 
@@ -34,18 +34,14 @@ emailUser = ""
 emailPassword = ""
 emailSubject = ""
 emailMessage = ""
+enableProxy = "false"
+requestProtocol = "http" # http or https
+proxyURL = ""
 output = None
     
 # Start of main function
 def mainFunction(propertyID,propertyMapService,relationshipID,propertyIDField,propertyAddressField,configFile,propertySymbology,propertyReportMXD,scaleBuffer,scale,OutputFile): # Get parameters from ArcGIS Desktop tool by seperating by comma e.g. (var1 is 1st parameter,var2 is 2nd parameter,var3 is 3rd parameter)              
     try:
-        # Logging
-        if (enableLogging == "true"):
-            # Setup logging
-            logger, logMessage = setLogging(logFile)
-            # Log start of process
-            logger.info("Process started.")
-            
         # --------------------------------------- Start of code --------------------------------------- #
         
         # ------------- Select the property by ID ------------------------
@@ -129,77 +125,91 @@ def mainFunction(propertyID,propertyMapService,relationshipID,propertyIDField,pr
         root = configFileXML.getroot()        
 
         # Iterate through each of the fields listed in the configuration file for the property report
-        for child in root.find("fields"):     
-            # Get the value of the field from the map service
-            value = str(mapServiceQueryJSONData["features"][0]["attributes"].get(child.find("fieldName").text))
-            # Get the text element from the map document and update with value from feature class
-            for elm in arcpy.mapping.ListLayoutElements(mxd, "TEXT_ELEMENT"):               
-               if elm.name == child.find("placeholder").text:                 
-                  # If value is valid, otherwise make it blank
-                  if (value != "None"):
-                      # If value text length is too long then add new lines
-                      if (len(str(value)) > 50):
-                          # Split string by spaces
-                          stringArray = value.split()
+        for child in root.find("fields"):
+            # If data is returned
+            if (len(mapServiceQueryJSONData["features"]) > 0):               
+                # Get the value of the field from the map service
+                value = str(mapServiceQueryJSONData["features"][0]["attributes"].get(child.find("fieldName").text))
+                # Get the text element from the map document and update with value from feature class
+                for elm in arcpy.mapping.ListLayoutElements(mxd, "TEXT_ELEMENT"):               
+                   if elm.name == child.find("placeholder").text:                 
+                      # If value is valid, otherwise make it blank
+                      if (value != "None"):
+                          # If value text length is too long then add new lines
+                          if (len(str(value)) > 50):
+                              # Split string by spaces
+                              stringArray = value.split()
 
-                          # For each of the words, build the text
-                          newText = ""
-                          textCounter = ""
-                          for i in range(len(stringArray)):
-                              # Add to element text until reaches max line width then add new line
-                              if (textCounter == ""):
-                                  newText = newText + stringArray[i]
-                              else:
-                                  newText = newText + " " + stringArray[i]
-                              textCounter = textCounter + " " + stringArray[i]
-                              if (len(textCounter) > 50):
-                                  # Add new line
-                                  textCounter = ""
-                                  newText = newText + "\r\n"
-                          # Set the text element
-                          elm.text = newText                              
-                      # Otherwise just replace text in text element
-                      else:
-                          if (child.find("format").text == "Currency"):                           
-                              elm.text = "$ " + '{:12,.2f}'.format(float(value))
-                          elif (child.find("format").text == "Float"):      
-                              elm.text = '{:20,.2f}'.format(float(value))                              
+                              # For each of the words, build the text
+                              newText = ""
+                              textCounter = ""
+                              for i in range(len(stringArray)):
+                                  # Add to element text until reaches max line width then add new line
+                                  if (textCounter == ""):
+                                      newText = newText + stringArray[i]
+                                  else:
+                                      newText = newText + " " + stringArray[i]
+                                  textCounter = textCounter + " " + stringArray[i]
+                                  if (len(textCounter) > 50):
+                                      # Add new line
+                                      textCounter = ""
+                                      newText = newText + "\r\n"
+                              # Set the text element
+                              elm.text = newText                              
+                          # Otherwise just replace text in text element
                           else:
-                              elm.text = value
-                  else:
-                      elm.text = " "
+                              if (child.find("format").text == "Currency"):                           
+                                  elm.text = "$ " + '{:12,.2f}'.format(float(value))
+                              elif (child.find("format").text == "Float"):      
+                                  elm.text = '{:20,.2f}'.format(float(value))                              
+                              else:
+                                  elm.text = value
+                      else:
+                          elm.text = " "
+            # No data is returned
+            else:
+                for elm in arcpy.mapping.ListLayoutElements(mxd, "TEXT_ELEMENT"):               
+                   if elm.name == child.find("placeholder").text:
+                       elm.text = " "
         # ----------------------------------------------------------------
 
         # ------------- Update the text elements from the config file for related information ------------------------
         # If a related table is in the map service
         if (len(relationshipID) > 0):
-            relatedTable = ""    
-            # Iterate through each of the records in the related table
-            for record in relateMapServiceQueryJSONData["relatedRecordGroups"][0]["relatedRecords"]:                
-                # Iterate through each of the relate fields listed in the configuration file for the property report
-                for child in root.find("relatedFields"):
-                    # Iterate through results in the related table
-                    for attribute in record["attributes"]:
-                        # Get the value of the field from the map service
-                        value = str(record["attributes"].get(attribute))
-                             
-                        # If the field name is in the config file
-                        if (attribute == child.find("fieldName").text):
-                            # Format the text
-                            if (child.find("format").text == "Currency"):
-                                value = "$ " + '{:6,.2f}'.format(float(value))
-                            elif (child.find("format").text == "Float"):                       
-                                value = '{:20,.2f}'.format(float(value))                              
-                            else:
-                                value = value
-                            
-                            relatedTable += child.find("fieldAlias").text + ": " + value + "          "
-                relatedTable += "\r\n"
+            relatedTable = ""
+            # If data is returned
+            if (len(relateMapServiceQueryJSONData["relatedRecordGroups"]) > 0):
+                # Iterate through each of the records in the related table
+                for record in relateMapServiceQueryJSONData["relatedRecordGroups"][0]["relatedRecords"]:                
+                    # Iterate through each of the relate fields listed in the configuration file for the property report
+                    for child in root.find("relatedFields"):
+                        # Iterate through results in the related table
+                        for attribute in record["attributes"]:
+                            # Get the value of the field from the map service
+                            value = str(record["attributes"].get(attribute))
+                                 
+                            # If the field name is in the config file
+                            if (attribute == child.find("fieldName").text):
+                                # Format the text
+                                if (child.find("format").text == "Currency"):
+                                    value = "$ " + '{:6,.2f}'.format(float(value))
+                                elif (child.find("format").text == "Float"):                       
+                                    value = '{:20,.2f}'.format(float(value))                              
+                                else:
+                                    value = value
+                                
+                                relatedTable += child.find("fieldAlias").text + ": " + value + "          "
+                    relatedTable += "\r\n"
                 
-            # Get the text element from the map document and update with value from feature class
-            for elm in arcpy.mapping.ListLayoutElements(mxd, "TEXT_ELEMENT"):               
-               if (elm.name == root.find("relatedTextElement").text):                               
-                   elm.text = relatedTable
+                # Get the text element from the map document and update with value from feature class
+                for elm in arcpy.mapping.ListLayoutElements(mxd, "TEXT_ELEMENT"):               
+                   if (elm.name == root.find("relatedTextElement").text):                               
+                       elm.text = relatedTable
+            # No data is returned
+            else:
+                for elm in arcpy.mapping.ListLayoutElements(mxd, "TEXT_ELEMENT"):               
+                   if (elm.name == root.find("relatedTextElement").text):
+                       elm.text = " "                       
         # ----------------------------------------------------------------
         
         # ------------- Export page to output folder ------------------------
@@ -240,7 +250,9 @@ def mainFunction(propertyID,propertyMapService,relationshipID,propertyIDField,pr
         # Logging
         if (enableLogging == "true"):
             # Log error          
-            logger.error(errorMessage)                 
+            logger.error(errorMessage)
+            # Log end of process
+            logger.info("Process ended.")            
             # Remove file handler and close log file
             logging.FileHandler.close(logMessage)
             logger.removeHandler(logMessage)
@@ -253,14 +265,16 @@ def mainFunction(propertyID,propertyMapService,relationshipID,propertyIDField,pr
         # Build and show the error message
         for i in range(len(e.args)):
             if (i == 0):
-                errorMessage = str(e.args[i])
+                errorMessage = unicode(e.args[i]).encode('utf-8')
             else:
-                errorMessage = errorMessage + " " + str(e.args[i])
+                errorMessage = errorMessage + " " + unicode(e.args[i]).encode('utf-8')
         arcpy.AddError(errorMessage)              
         # Logging
         if (enableLogging == "true"):
             # Log error            
-            logger.error(errorMessage)               
+            logger.error(errorMessage)
+            # Log end of process
+            logger.info("Process ended.")            
             # Remove file handler and close log file
             logging.FileHandler.close(logMessage)
             logger.removeHandler(logMessage)
@@ -268,6 +282,7 @@ def mainFunction(propertyID,propertyMapService,relationshipID,propertyIDField,pr
             # Send email
             sendEmail(errorMessage)            
 # End of main function
+
 
 # Start of set logging function
 def setLogging(logFile):
@@ -314,4 +329,17 @@ if __name__ == '__main__':
     # Arguments are optional - If running from ArcGIS Desktop tool, parameters will be loaded into *argv
     argv = tuple(arcpy.GetParameterAsText(i)
         for i in range(arcpy.GetArgumentCount()))
+    # Logging
+    if (enableLogging == "true"):
+        # Setup logging
+        logger, logMessage = setLogging(logFile)
+        # Log start of process
+        logger.info("Process started.")
+    # Setup the use of a proxy for requests
+    if (enableProxy == "true"):
+        # Setup the proxy
+        proxy = urllib2.ProxyHandler({requestProtocol : proxyURL})
+        openURL = urllib2.build_opener(proxy)
+        # Install the proxy
+        urllib2.install_opener(openURL)
     mainFunction(*argv)
